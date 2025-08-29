@@ -1,0 +1,31 @@
+{
+    "name": "ai-interior-designer",
+    "version": "0.1.0",
+    "private": true,
+    "description": "AI Interior Designer - Scan rooms and get instant, shoppable layouts",
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "packageManager": "pnpm@8.15.0",
+    "engines": {
+        "node": ">=20.0.0",
+        "pnpm": ">=8.0.0"
+    },
+    "scripts": {
+        "build": "turbo build",
+        "dev": "turbo dev",
+        "lint": "turbo lint",
+        "test": "turbo test",
+        "type-check": "turbo type-check",
+        "clean": "turbo clean && rm -rf node_modules",
+        "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+        "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "prettier": "^3.2.0",
+        "turbo": "^1.12.0",
+        "typescript": "^5.3.0"
+    }
+}

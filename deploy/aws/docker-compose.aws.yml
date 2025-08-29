@@ -1,0 +1,234 @@
+version: '3.8'
+
+# AWS ECS/Fargate Deployment Configuration
+services:
+  # API Service
+  api:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/api:${IMAGE_TAG}
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${RDS_DATABASE_URL}
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      S3_ENDPOINT: https://s3.${AWS_REGION}.amazonaws.com
+      S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET_NAME}
+      S3_REGION: ${AWS_REGION}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/api
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  # Scan Worker
+  scan-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/scan-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      S3_ENDPOINT: https://s3.${AWS_REGION}.amazonaws.com
+      S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET_NAME}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/scan-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  # Layout Worker
+  layout-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/layout-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      DATABASE_URL: ${RDS_DATABASE_URL}
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/layout-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  # RAG Worker
+  rag-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/rag-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      DATABASE_URL: ${RDS_DATABASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.5'
+        reservations:
+          memory: 1.5G
+          cpus: '0.75'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/rag-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  # Other workers...
+  catalog-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/catalog-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      DATABASE_URL: ${RDS_DATABASE_URL}
+      IKEA_API_KEY: ${IKEA_API_KEY}
+      WAYFAIR_API_KEY: ${WAYFAIR_API_KEY}
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/catalog-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  render-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/render-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      S3_ENDPOINT: https://s3.${AWS_REGION}.amazonaws.com
+      S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET_NAME}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.5'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/render-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  export-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/export-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      S3_ENDPOINT: https://s3.${AWS_REGION}.amazonaws.com
+      S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET_NAME}
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/export-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  validate-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/validate-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/validate-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+  seg-worker:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/ai-interior-designer/seg-worker:${IMAGE_TAG}
+    environment:
+      REDIS_URL: ${ELASTICACHE_REDIS_URL}
+      NATS_URL: ${NATS_URL}
+      S3_ENDPOINT: https://s3.${AWS_REGION}.amazonaws.com
+      S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET_NAME}
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.5'
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /ecs/ai-interior-designer/seg-worker
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: ecs
+
+networks:
+  default:
+    external:
+      name: ai-interior-designer-network
